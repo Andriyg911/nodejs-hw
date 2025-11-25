@@ -1,1 +1,4 @@
-node_modules\n.env\nnpm-debug.log*\n.DS_Store
+node_modules/
+.env
+npm-debug.log*
+.DS_Store
