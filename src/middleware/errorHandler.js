@@ -1,4 +1,3 @@
-// src/middleware/errorHandler.js
 import { isHttpError } from "http-errors";
 
 // Основний мідлвар для обробки помилок
