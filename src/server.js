@@ -1,28 +1,37 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import { connectMongoDB } from './db/connectMongoDB.js';
-import notesRoutes from './routes/notesRoutes.js';
-import { logger } from './middleware/logger.js';
-import { notFoundHandler } from './middleware/notFoundHandler.js';
-import { errorHandler } from './middleware/errorHandler.js';
+import express from "express";
+import dotenv from "dotenv";
+import { connectMongoDB } from "./db/connectMongoDB.js";
+import notesRoutes from "./routes/notesRoutes.js";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { errors } from "celebrate"; // ⬅️ ОЦЕ ТРЕБА ДОДАТИ
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-await connectMongoDB();
-
-app.use(logger);
 app.use(express.json());
-app.use(cors());
 
-app.use(notesRoutes);
+// Роутінг
+app.use("/notes", notesRoutes);
 
+// Обробка неіснуючих маршрутів
 app.use(notFoundHandler);
+
+// Обробка помилок celebrate
+app.use(errors()); // ⬅️ ОБОВʼЯЗКОВО ПЕРЕД errorHandler
+
+// Обробка інших помилок
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+
+connectMongoDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ Failed to connect to MongoDB:", err);
+    process.exit(1);
+  });
