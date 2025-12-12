@@ -1,7 +1,7 @@
 import { Note } from "../models/note.js";
 import createError from "http-errors";
 
-// GET /notes
+// GET /notes — з пагінацією, фільтрацією та пошуком
 export const getAllNotes = async (req, res, next) => {
   try {
     const { page = 1, perPage = 10, tag, search } = req.query;
@@ -36,7 +36,7 @@ export const getAllNotes = async (req, res, next) => {
   }
 };
 
-// GET /notes/:noteId
+// GET /notes/:noteId — отримати нотатку за ID
 export const getNoteById = async (req, res, next) => {
   try {
     const { noteId } = req.params;
@@ -50,7 +50,7 @@ export const getNoteById = async (req, res, next) => {
   }
 };
 
-// POST /notes
+// POST /notes — створити нову нотатку
 export const createNote = async (req, res, next) => {
   try {
     const note = await Note.create(req.body);
@@ -60,7 +60,7 @@ export const createNote = async (req, res, next) => {
   }
 };
 
-// PATCH /notes/:noteId
+// PATCH /notes/:noteId — оновити нотатку
 export const updateNote = async (req, res, next) => {
   try {
     const { noteId } = req.params;
@@ -77,7 +77,7 @@ export const updateNote = async (req, res, next) => {
   }
 };
 
-// DELETE /notes/:noteId
+// DELETE /notes/:noteId — видалити нотатку
 export const deleteNote = async (req, res, next) => {
   try {
     const { noteId } = req.params;
@@ -85,7 +85,8 @@ export const deleteNote = async (req, res, next) => {
     if (!note) {
       throw createError(404, "Note not found");
     }
-    res.status(200).json({ message: "Note deleted successfully" });
+    // ⬅️ Повертаємо саму видалену нотатку
+    res.status(200).json(note);
   } catch (err) {
     next(err);
   }

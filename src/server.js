@@ -2,8 +2,10 @@ import express from "express";
 import dotenv from "dotenv";
 import { connectMongoDB } from "./db/connectMongoDB.js";
 import notesRoutes from "./routes/notesRoutes.js";
-import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
-import { errors } from "celebrate"; // ⬅️ ОЦЕ ТРЕБА ДОДАТИ
+import { errorHandler } from "./middleware/errorHandler.js";
+import { notFoundHandler } from "./middleware/notFoundHandler.js";
+import { logger } from "./middleware/logger.js";
+import { errors } from "celebrate";
 
 dotenv.config();
 
@@ -11,14 +13,17 @@ const app = express();
 
 app.use(express.json());
 
-// Роутінг
-app.use("/notes", notesRoutes);
+// Логування
+app.use(logger);
+
+// Роутинг (без префікса)
+app.use(notesRoutes);
 
 // Обробка неіснуючих маршрутів
 app.use(notFoundHandler);
 
 // Обробка помилок celebrate
-app.use(errors()); // ⬅️ ОБОВʼЯЗКОВО ПЕРЕД errorHandler
+app.use(errors());
 
 // Обробка інших помилок
 app.use(errorHandler);
