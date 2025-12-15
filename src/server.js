@@ -1,31 +1,25 @@
 import express from "express";
 import dotenv from "dotenv";
+import cors from "cors"; // ⬅️ новий імпорт
 import { connectMongoDB } from "./db/connectMongoDB.js";
 import notesRoutes from "./routes/notesRoutes.js";
-import { errorHandler } from "./middleware/errorHandler.js";
-import { notFoundHandler } from "./middleware/notFoundHandler.js";
 import { logger } from "./middleware/logger.js";
+import { notFoundHandler } from "./middleware/notFoundHandler.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 import { errors } from "celebrate";
 
 dotenv.config();
 
 const app = express();
 
-app.use(express.json());
-
-// Логування
 app.use(logger);
+app.use(express.json());
+app.use(cors()); // ⬅️ застосування cors
 
-// Роутинг (без префікса)
 app.use(notesRoutes);
 
-// Обробка неіснуючих маршрутів
 app.use(notFoundHandler);
-
-// Обробка помилок celebrate
 app.use(errors());
-
-// Обробка інших помилок
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
