@@ -1,8 +1,10 @@
 import express from "express";
 import dotenv from "dotenv";
-import cors from "cors"; // ⬅️ новий імпорт
+import cors from "cors";
+import cookieParser from "cookie-parser";
 import { connectMongoDB } from "./db/connectMongoDB.js";
 import notesRoutes from "./routes/notesRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 import { logger } from "./middleware/logger.js";
 import { notFoundHandler } from "./middleware/notFoundHandler.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -14,8 +16,15 @@ const app = express();
 
 app.use(logger);
 app.use(express.json());
-app.use(cors()); // ⬅️ застосування cors
+app.use(cookieParser());
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
 
+app.use(authRoutes);
 app.use(notesRoutes);
 
 app.use(notFoundHandler);
