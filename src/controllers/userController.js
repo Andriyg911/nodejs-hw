@@ -1,21 +1,51 @@
 import createHttpError from "http-errors";
-import { saveFileToCloudinary } from "../utils/saveFileToCloudinary.js";
 import { User } from "../models/user.js";
+import { saveFileToCloudinary } from "../utils/saveFileToCloudinary.js";
 
-export const updateUserAvatar = async (req, res, next) => {
+// GET /users/me
+export const getProfile = async (req, res, next) => {
   try {
-    if (!req.file) throw createHttpError(400, "No file");
+    // тут можна брати userId з JWT, але поки заглушка
+    const user = await User.findById(req.user?.id);
+    if (!user) throw createHttpError(404, "User not found");
 
-    const result = await saveFileToCloudinary(req.file.buffer);
-
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { avatar: result.secure_url },
-      { new: true }
-    );
-
-    res.status(200).json({ url: user.avatar });
+    res.json({
+      id: user._id,
+      email: user.email,
+      username: user.username,
+      avatar: user.avatarUrl,
+    });
   } catch (err) {
     next(err);
   }
+};
+
+// PATCH /users/me/avatar
+export const updateAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) throw createHttpError(400, "No file uploaded");
+
+    const result = await saveFileToCloudinary(req.file.path);
+
+    const user = await User.findById(req.user?.id);
+    if (!user) throw createHttpError(404, "User not found");
+
+    user.avatarUrl = result.secure_url;
+    await user.save();
+
+    res.json({ message: "Avatar updated", avatarUrl: user.avatarUrl });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ================== STUBS ==================
+// Якщо немає JWT‑middleware, можна залишити заглушки
+
+export const getProfileStub = (req, res) => {
+  res.json({ message: "User profile (stub)" });
+};
+
+export const updateAvatarStub = (req, res) => {
+  res.json({ message: "Avatar updated (stub)" });
 };
