@@ -1,23 +1,31 @@
 import express from "express";
+import { celebrate } from "celebrate";
 import {
   registerUser,
   loginUser,
   refreshUserSession,
   logoutUser,
   requestResetEmail,
-  resetPassword
+  resetPassword,
 } from "../controllers/authController.js";
+
+import {
+  registerUserSchema,
+  loginUserSchema,
+  requestResetEmailSchema,
+  resetPasswordSchema,
+} from "../validations/authValidation.js";
 
 const router = express.Router();
 
 // базові маршрути автентифікації
-router.post("/auth/register", registerUser);
-router.post("/auth/login", loginUser);
+router.post("/auth/register", celebrate(registerUserSchema), registerUser);
+router.post("/auth/login", celebrate(loginUserSchema), loginUser);
 router.post("/auth/refresh", refreshUserSession);
 router.post("/auth/logout", logoutUser);
 
 // маршрути для відновлення пароля
-router.post("/auth/request-reset-email", requestResetEmail);
-router.post("/auth/reset-password", resetPassword);
+router.post("/auth/request-reset-email", celebrate(requestResetEmailSchema), requestResetEmail);
+router.post("/auth/reset-password", celebrate(resetPasswordSchema), resetPassword);
 
 export default router;

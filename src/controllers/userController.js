@@ -5,7 +5,6 @@ import { saveFileToCloudinary } from "../utils/saveFileToCloudinary.js";
 // GET /users/me
 export const getProfile = async (req, res, next) => {
   try {
-    // тут можна брати userId з JWT, але поки заглушка
     const user = await User.findById(req.user?.id);
     if (!user) throw createHttpError(404, "User not found");
 
@@ -13,7 +12,7 @@ export const getProfile = async (req, res, next) => {
       id: user._id,
       email: user.email,
       username: user.username,
-      avatar: user.avatarUrl,
+      avatar: user.avatar, // узгоджено з моделлю
     });
   } catch (err) {
     next(err);
@@ -25,23 +24,21 @@ export const updateAvatar = async (req, res, next) => {
   try {
     if (!req.file) throw createHttpError(400, "No file uploaded");
 
-    const result = await saveFileToCloudinary(req.file.path);
+    const result = await saveFileToCloudinary(req.file.buffer); // узгоджено з multer.memoryStorage()
 
     const user = await User.findById(req.user?.id);
     if (!user) throw createHttpError(404, "User not found");
 
-    user.avatarUrl = result.secure_url;
+    user.avatar = result.secure_url; // узгоджено з моделлю
     await user.save();
 
-    res.json({ message: "Avatar updated", avatarUrl: user.avatarUrl });
+    res.json({ message: "Avatar updated", avatar: user.avatar });
   } catch (err) {
     next(err);
   }
 };
 
-// ================== STUBS ==================
-// Якщо немає JWT‑middleware, можна залишити заглушки
-
+// STUBS
 export const getProfileStub = (req, res) => {
   res.json({ message: "User profile (stub)" });
 };

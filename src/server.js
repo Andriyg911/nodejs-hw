@@ -19,9 +19,9 @@ app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
-// реєстрація маршрутів
-app.use(authRoutes);
-app.use(userRoutes);
+// реєстрація маршрутів з префіксами
+app.use("/auth", authRoutes);
+app.use("/users", userRoutes);
 
 // 404 handler
 app.use((req, res, next) => {
