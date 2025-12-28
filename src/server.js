@@ -8,7 +8,7 @@ import createHttpError from "http-errors";
 
 import { connectMongoDB } from "./db/connectMongoDB.js";
 import authRoutes from "./routes/authRoutes.js";
-import userRoutes from "./routes/userRoutes.js"; // 👈 додано
+import userRoutes from "./routes/userRoutes.js";
 
 dotenv.config();
 
@@ -21,7 +21,7 @@ app.use(cookieParser());
 
 // реєстрація маршрутів
 app.use(authRoutes);
-app.use(userRoutes); 
+app.use(userRoutes);
 
 // 404 handler
 app.use((req, res, next) => {
@@ -32,8 +32,8 @@ app.use((req, res, next) => {
 app.use(errors());
 
 // error handler
-app.use((err, req, res, next) => {
-  res.status(err.status || 500).json({ message: err.message });
+app.use((err, req, res, _next) => {
+  res.status(err.status || 500).json({ message: err.message || "Internal Server Error" });
 });
 
 const PORT = process.env.PORT || 3000;
@@ -41,10 +41,10 @@ const PORT = process.env.PORT || 3000;
 connectMongoDB()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      console.log(`🚀 Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.error("MongoDB connection failed:", err.message);
+    console.error("❌ MongoDB connection failed:", err.message);
     process.exit(1);
   });
