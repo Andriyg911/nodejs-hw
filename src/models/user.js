@@ -2,24 +2,30 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    username: { type: String, trim: true },
-    email: { type: String, required: true, unique: true, trim: true },
-    password: { type: String, required: true, minlength: 8 },
+    username: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    avatar: {
+      type: String,
+      default: "https://ac.goit.global/fullstack/react/default-avatar.jpg",
+    },
   },
   { timestamps: true }
 );
 
-// Видаляти пароль з відповіді
-userSchema.method("toJSON", function () {
+// pre-hook: якщо username не вказано — ставимо email
+userSchema.pre("save", function (next) {
+  if (!this.username && this.email) {
+    this.username = this.email;
+  }
+  next();
+});
+
+// toJSON: прибираємо пароль з відповіді
+userSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
   return obj;
-});
-
-// За замовчуванням username = email
-userSchema.pre("save", function (next) {
-  if (!this.username) this.username = this.email;
-  next();
-});
+};
 
 export const User = mongoose.model("User", userSchema);

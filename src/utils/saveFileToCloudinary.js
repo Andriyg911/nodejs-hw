@@ -16,7 +16,13 @@ cloudinary.config({
 export const saveFileToCloudinary = (buffer) => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: "avatars" },
+      {
+        resource_type: "image",       // 👈 обов’язково
+        folder: "avatars",            // 👈 папка для збереження
+        overwrite: true,              // 👈 дозволяє перезапис
+        use_filename: true,           // 👈 використовує ім’я файлу
+        unique_filename: false,       // 👈 не генерує випадкове ім’я
+      },
       (error, result) => {
         if (error) return reject(error);
         resolve(result);

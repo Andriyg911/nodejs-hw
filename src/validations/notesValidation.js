@@ -1,44 +1,29 @@
-import { Joi, Segments } from "celebrate";
-import mongoose from "mongoose";
-import { TAGS } from "../constants/tags.js";
+import { Router } from "express";
+import { celebrate } from "celebrate";
+import {
+  registerUser,
+  loginUser,
+  refreshUserSession,
+  logoutUser,
+  requestResetEmail,
+  resetPassword,
+} from "../controllers/authController.js";
+import {
+  registerUserSchema,
+  loginUserSchema,
+  requestResetEmailSchema,
+  resetPasswordSchema,
+} from "../validations/authValidation.js";
 
-const isValidObjectId = (value, helpers) => {
-  if (!mongoose.isValidObjectId(value)) {
-    return helpers.error("any.invalid");
-  }
-  return value;
-};
+const router = Router();
 
-export const getAllNotesSchema = {
-  [Segments.QUERY]: Joi.object({
-    page: Joi.number().integer().min(1).default(1),
-    perPage: Joi.number().integer().min(5).max(20).default(10),
-    tag: Joi.string().valid(...TAGS),
-    search: Joi.string().allow(""),
-  }),
-};
+router.post("/auth/register", celebrate(registerUserSchema), registerUser);
+router.post("/auth/login", celebrate(loginUserSchema), loginUser);
+router.post("/auth/refresh", refreshUserSession);
+router.post("/auth/logout", logoutUser);
 
-export const noteIdSchema = {
-  [Segments.PARAMS]: Joi.object({
-    noteId: Joi.string().custom(isValidObjectId).required(),
-  }),
-};
+// 👇 додані маршрути для скидання паролю
+router.post("/auth/request-reset-email", celebrate(requestResetEmailSchema), requestResetEmail);
+router.post("/auth/reset-password", celebrate(resetPasswordSchema), resetPassword);
 
-export const createNoteSchema = {
-  [Segments.BODY]: Joi.object({
-    title: Joi.string().min(1).required(),
-    content: Joi.string().allow(""),
-    tag: Joi.string().valid(...TAGS),
-  }),
-};
-
-export const updateNoteSchema = {
-  [Segments.PARAMS]: Joi.object({
-    noteId: Joi.string().custom(isValidObjectId).required(),
-  }),
-  [Segments.BODY]: Joi.object({
-    title: Joi.string().min(1),
-    content: Joi.string().allow(""),
-    tag: Joi.string().valid(...TAGS),
-  }).min(1),
-};
+export default router;

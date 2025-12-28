@@ -1,85 +1,77 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import createHttpError from "http-errors";
+import handlebars from "handlebars";
+
 import { User } from "../models/user.js";
-import { Session } from "../models/session.js";
-import { createSession, setSessionCookies } from "../services/auth.js";
+import { sendEmail } from "../utils/sendMail.js";
 
-export const registerUser = async (req, res, next) => {
+const {
+  JWT_RESET_SECRET,
+  FRONTEND_DOMAIN, // e.g. https://your-frontend.com
+} = process.env;
+
+// POST /auth/request-reset-email
+export const requestResetEmail = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-
-    const exists = await User.findOne({ email });
-    if (exists) throw createHttpError(400, "Email in use");
-
-    const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ email, password: passwordHash });
-
-    const session = await createSession(user._id);
-    setSessionCookies(res, session);
-
-    res.status(201).json(user);
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const loginUser = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
+    const { email } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user) throw createHttpError(401, "Invalid credentials");
+    if (!user) {
+      // Не розкриваємо, чи існує email — відповідаємо успіхом
+      return res.status(200).json({ message: "If the email exists, a reset link has been sent." });
+    }
 
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) throw createHttpError(401, "Invalid credentials");
+    const token = jwt.sign({ userId: user._id }, JWT_RESET_SECRET, { expiresIn: "15m" });
 
-    await Session.deleteMany({ userId: user._id });
+    const resetLink = `${FRONTEND_DOMAIN}/reset-password?token=${encodeURIComponent(token)}`;
 
-    const session = await createSession(user._id);
-    setSessionCookies(res, session);
+    const templatePath = path.join(process.cwd(), "src", "templates", "reset-password-email.html");
+    const raw = await fs.readFile(templatePath, "utf-8");
+    const tpl = handlebars.compile(raw);
+    const html = tpl({ username: user.username ?? user.email, resetLink });
 
-    res.status(200).json(user);
+    await sendEmail({
+      to: user.email,
+      subject: "Reset your password",
+      html,
+    });
+
+    res.status(200).json({ message: "Reset email sent" });
   } catch (err) {
     next(err);
   }
 };
 
-export const refreshUserSession = async (req, res, next) => {
+// POST /auth/reset-password
+export const resetPassword = async (req, res, next) => {
   try {
-    const { sessionId, refreshToken } = req.cookies || {};
-    if (!sessionId || !refreshToken) throw createHttpError(401, "Session not found");
+    const { token, password } = req.body;
 
-    const session = await Session.findById(sessionId);
-    if (!session || session.refreshToken !== refreshToken) {
-      throw createHttpError(401, "Session not found");
+    if (!token) throw createHttpError(400, "Token is required");
+    if (!password) throw createHttpError(400, "Password is required");
+
+    let payload;
+    try {
+      payload = jwt.verify(token, JWT_RESET_SECRET);
+    } catch {
+      throw createHttpError(400, "Invalid or expired token");
     }
 
-    if (session.refreshTokenValidUntil.getTime() < Date.now()) {
-      await Session.findByIdAndDelete(sessionId);
-      throw createHttpError(401, "Session token expired");
-    }
+    const user = await User.findById(payload.userId);
+    if (!user) throw createHttpError(404, "User not found");
 
-    await Session.findByIdAndDelete(sessionId);
-    const newSession = await createSession(session.userId);
-    setSessionCookies(res, newSession);
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(password, salt);
 
-    res.status(200).json({ message: "Session refreshed" });
-  } catch (err) {
-    next(err);
-  }
-};
+    user.password = hash;
+    await user.save();
 
-export const logoutUser = async (req, res, next) => {
-  try {
-    const { sessionId } = req.cookies || {};
-    if (sessionId) await Session.findByIdAndDelete(sessionId);
+    // Опціонально: інвалідовувати активні сесії тут (якщо є окремі моделі сесій)
 
-    const clearOpts = { httpOnly: true, secure: true, sameSite: "none" };
-    res.clearCookie("accessToken", clearOpts);
-    res.clearCookie("refreshToken", clearOpts);
-    res.clearCookie("sessionId", clearOpts);
-
-    res.status(204).send();
+    res.status(200).json({ message: "Password has been reset" });
   } catch (err) {
     next(err);
   }

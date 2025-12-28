@@ -2,44 +2,49 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { connectMongoDB } from "./db/connectMongoDB.js";
-import notesRoutes from "./routes/notesRoutes.js";
-import authRoutes from "./routes/authRoutes.js";
-import { logger } from "./middleware/logger.js";
-import { notFoundHandler } from "./middleware/notFoundHandler.js";
-import { errorHandler } from "./middleware/errorHandler.js";
+import morgan from "morgan";
 import { errors } from "celebrate";
+import createHttpError from "http-errors";
+
+import { connectMongoDB } from "./db/connectMongoDB.js";
+import authRoutes from "./routes/authRoutes.js";
+import userRoutes from "./routes/userRoutes.js"; // 👈 додано
 
 dotenv.config();
 
 const app = express();
 
-app.use(logger);
+app.use(morgan("dev"));
+app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
 
+// реєстрація маршрутів
 app.use(authRoutes);
-app.use(notesRoutes);
+app.use(userRoutes); 
 
-app.use(notFoundHandler);
+// 404 handler
+app.use((req, res, next) => {
+  next(createHttpError(404, "Route not found"));
+});
+
+// celebrate errors
 app.use(errors());
-app.use(errorHandler);
+
+// error handler
+app.use((err, req, res, next) => {
+  res.status(err.status || 500).json({ message: err.message });
+});
 
 const PORT = process.env.PORT || 3000;
 
 connectMongoDB()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.error("❌ Failed to connect to MongoDB:", err);
+    console.error("MongoDB connection failed:", err.message);
     process.exit(1);
   });
