@@ -4,19 +4,19 @@
     "start": "node src/server.js"
   },
   "dependencies": {
-    "bcrypt": "5.1.1",
-    "celebrate": "15.0.1",
-    "cloudinary": "1.41.3",
-    "cookie-parser": "1.4.7",
-    "cors": "2.8.5",
-    "dotenv": "16.4.5",
-    "express": "4.21.1",
-    "handlebars": "4.7.8",
-    "http-errors": "2.0.0",
-    "jsonwebtoken": "9.0.2",
-    "mongoose": "8.5.1",
-    "morgan": "1.10.0",
-    "multer": "1.4.5-lts.1",
-    "nodemailer": "7.0.12"
+    "bcrypt": "^6.0.0",
+    "celebrate": "^15.0.3",
+    "cloudinary": "^2.8.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "handlebars": "^4.7.8",
+    "http-errors": "^2.0.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.0.2",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.12"
   }
 }
