@@ -3,7 +3,7 @@ import { isHttpError } from "http-errors";
 /**
  * Глобальний обробник помилок
  */
-export const errorHandler = (err, req, res, _next) => {
+const errorHandler = (err, req, res, _next) => {
   if (isHttpError(err)) {
     return res.status(err.status).json({ message: err.message });
   }
@@ -11,6 +11,8 @@ export const errorHandler = (err, req, res, _next) => {
   console.error("Unexpected error:", err);
   return res.status(500).json({ message: "Internal Server Error" });
 };
+
+export default errorHandler;
 
 /**
  * Обробник неіснуючих маршрутів (404)
