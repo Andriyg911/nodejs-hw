@@ -1,29 +1,33 @@
-import { Router } from "express";
-import { celebrate } from "celebrate";
-import {
-  registerUser,
-  loginUser,
-  refreshUserSession,
-  logoutUser,
-  requestResetEmail,
-  resetPassword,
-} from "../controllers/authController.js";
-import {
-  registerUserSchema,
-  loginUserSchema,
-  requestResetEmailSchema,
-  resetPasswordSchema,
-} from "../validations/authValidation.js";
+import { Joi, Segments } from "celebrate";
 
-const router = Router();
+// GET /notes?tag=...
+export const getAllNotesSchema = {
+  [Segments.QUERY]: Joi.object({
+    tag: Joi.string(),
+  }),
+};
 
-router.post("/auth/register", celebrate(registerUserSchema), registerUser);
-router.post("/auth/login", celebrate(loginUserSchema), loginUser);
-router.post("/auth/refresh", refreshUserSession);
-router.post("/auth/logout", logoutUser);
+// GET /notes/:noteId та DELETE /notes/:noteId
+export const noteIdSchema = {
+  [Segments.PARAMS]: Joi.object({
+    noteId: Joi.string().hex().length(24).required(),
+  }),
+};
 
-// 👇 додані маршрути для скидання паролю
-router.post("/auth/request-reset-email", celebrate(requestResetEmailSchema), requestResetEmail);
-router.post("/auth/reset-password", celebrate(resetPasswordSchema), resetPassword);
+// POST /notes
+export const createNoteSchema = {
+  [Segments.BODY]: Joi.object({
+    title: Joi.string().required(),
+    content: Joi.string().required(),
+    tags: Joi.array().items(Joi.string()),
+  }),
+};
 
-export default router;
+// PATCH /notes/:noteId
+export const updateNoteSchema = {
+  [Segments.BODY]: Joi.object({
+    title: Joi.string(),
+    content: Joi.string(),
+    tags: Joi.array().items(Joi.string()),
+  }),
+};
