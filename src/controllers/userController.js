@@ -2,47 +2,21 @@ import createHttpError from "http-errors";
 import { User } from "../models/user.js";
 import { saveFileToCloudinary } from "../utils/saveFileToCloudinary.js";
 
-// GET /users/me
-export const getProfile = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user?.id);
-    if (!user) throw createHttpError(404, "User not found");
-
-    res.json({
-      id: user._id,
-      email: user.email,
-      username: user.username,
-      avatar: user.avatar, // узгоджено з моделлю
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
 // PATCH /users/me/avatar
-export const updateAvatar = async (req, res, next) => {
+export const updateUserAvatar = async (req, res, next) => {
   try {
     if (!req.file) throw createHttpError(400, "No file uploaded");
 
-    const result = await saveFileToCloudinary(req.file.buffer); // узгоджено з multer.memoryStorage()
+    const result = await saveFileToCloudinary(req.file.buffer);
 
-    const user = await User.findById(req.user?.id);
+    const user = await User.findById(req.user._id); // ✅ використовуємо _id
     if (!user) throw createHttpError(404, "User not found");
 
-    user.avatar = result.secure_url; // узгоджено з моделлю
+    user.avatar = result.secure_url;
     await user.save();
 
-    res.json({ message: "Avatar updated", avatar: user.avatar });
+    res.status(200).json({ url: user.avatar }); // ✅ правильний формат + статус 200
   } catch (err) {
     next(err);
   }
-};
-
-// STUBS
-export const getProfileStub = (req, res) => {
-  res.json({ message: "User profile (stub)" });
-};
-
-export const updateAvatarStub = (req, res) => {
-  res.json({ message: "Avatar updated (stub)" });
 };

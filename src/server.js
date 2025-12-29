@@ -2,39 +2,36 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import morgan from "morgan";
 import { errors } from "celebrate";
-import createHttpError from "http-errors";
 
 import { connectMongoDB } from "./db/connectMongoDB.js";
+import logger from "./middleware/logger.js";
+import notFoundHandler from "./middleware/notFoundHandler.js";
+import errorHandler from "./middleware/errorHandler.js";
+
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import notesRoutes from "./routes/notesRoutes.js";
 
 dotenv.config();
 
 const app = express();
 
-app.use(morgan("dev"));
+// middleware
+app.use(logger);
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 
-// реєстрація маршрутів з префіксами
-app.use("/auth", authRoutes);
-app.use("/users", userRoutes);
+// маршрути без префіксів
+app.use(authRoutes);
+app.use(userRoutes);
+app.use(notesRoutes);
 
-// 404 handler
-app.use((req, res, next) => {
-  next(createHttpError(404, "Route not found"));
-});
-
-// celebrate errors
+// обробка помилок
+app.use(notFoundHandler);
 app.use(errors());
-
-// error handler
-app.use((err, req, res, _next) => {
-  res.status(err.status || 500).json({ message: err.message || "Internal Server Error" });
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 

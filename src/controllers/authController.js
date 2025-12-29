@@ -9,7 +9,7 @@ import { User } from "../models/user.js";
 import { sendEmail } from "../utils/sendMail.js";
 
 const {
-  JWT_RESET_SECRET,
+  JWT_SECRET,
   FRONTEND_DOMAIN, // e.g. https://your-frontend.com
 } = process.env;
 
@@ -22,15 +22,16 @@ export const requestResetEmail = async (req, res, next) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      // Не розкриваємо, чи існує email — відповідаємо успіхом
       return res
         .status(200)
         .json({ message: "If the email exists, a reset link has been sent." });
     }
 
-    const token = jwt.sign({ userId: user._id }, JWT_RESET_SECRET, {
-      expiresIn: "15m",
-    });
+    const token = jwt.sign(
+      { userId: user._id, email: user.email }, // ✅ додаємо email
+      JWT_SECRET,                              // ✅ використовуємо JWT_SECRET
+      { expiresIn: "15m" }
+    );
 
     const resetLink = `${FRONTEND_DOMAIN}/reset-password?token=${encodeURIComponent(
       token
@@ -68,7 +69,7 @@ export const resetPassword = async (req, res, next) => {
 
     let payload;
     try {
-      payload = jwt.verify(token, JWT_RESET_SECRET);
+      payload = jwt.verify(token, JWT_SECRET); // ✅ перевіряємо через JWT_SECRET
     } catch {
       throw createHttpError(400, "Invalid or expired token");
     }
@@ -88,24 +89,83 @@ export const resetPassword = async (req, res, next) => {
   }
 };
 
-// ================== STUBS FOR OTHER ROUTES ==================
+// ================== AUTH ==================
 
 // POST /auth/register
-export const registerUser = (req, res) => {
-  res.json({ message: "User registered (stub)" });
+export const registerUser = async (req, res, next) => {
+  try {
+    const { email, password, username } = req.body;
+
+    const existing = await User.findOne({ email });
+    if (existing) throw createHttpError(409, "Email already in use");
+
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(password, salt);
+
+    const user = await User.create({
+      email,
+      password: hash,
+      username,
+    });
+
+    res.status(201).json(user); // toJSON видалить пароль
+  } catch (err) {
+    next(err);
+  }
 };
 
 // POST /auth/login
-export const loginUser = (req, res) => {
-  res.json({ message: "User logged in (stub)" });
+export const loginUser = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) throw createHttpError(401, "Invalid credentials");
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) throw createHttpError(401, "Invalid credentials");
+
+    const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    res.json({ token });
+  } catch (err) {
+    next(err);
+  }
 };
 
 // POST /auth/refresh
-export const refreshUserSession = (req, res) => {
-  res.json({ message: "Session refreshed (stub)" });
+export const refreshUserSession = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    if (!token) throw createHttpError(400, "Token required");
+
+    let payload;
+    try {
+      payload = jwt.verify(token, JWT_SECRET);
+    } catch {
+      throw createHttpError(401, "Invalid token");
+    }
+
+    const newToken = jwt.sign(
+      { userId: payload.userId, email: payload.email },
+      JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.json({ token: newToken });
+  } catch (err) {
+    next(err);
+  }
 };
 
 // POST /auth/logout
-export const logoutUser = (req, res) => {
-  res.json({ message: "User logged out (stub)" });
+export const logoutUser = async (req, res, next) => {
+  try {
+    // У простій реалізації можна просто відповісти успіхом
+    res.json({ message: "User logged out" });
+  } catch (err) {
+    next(err);
+  }
 };
