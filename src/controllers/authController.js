@@ -6,12 +6,38 @@ import createHttpError from "http-errors";
 import handlebars from "handlebars";
 
 import { User } from "../models/user.js";
+import { Session } from "../models/session.js";
 import { sendEmail } from "../utils/sendMail.js";
 
 const {
   JWT_SECRET,
   FRONTEND_DOMAIN, // e.g. https://your-frontend.com
 } = process.env;
+
+// ================== SESSION HELPERS ==================
+
+const createSession = async (userId) => {
+  // видаляємо старі сесії користувача
+  await Session.deleteMany({ userId });
+
+  // створюємо нову
+  const session = await Session.create({ userId });
+
+  // генеруємо токени
+  const accessToken = jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "15m" });
+  const refreshToken = jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "7d" });
+
+  session.refreshToken = refreshToken;
+  await session.save();
+
+  return { session, accessToken, refreshToken };
+};
+
+const setSessionCookies = (res, sessionId, accessToken, refreshToken) => {
+  res.cookie("sessionId", sessionId, { httpOnly: true, sameSite: "strict" });
+  res.cookie("accessToken", accessToken, { httpOnly: true, sameSite: "strict" });
+  res.cookie("refreshToken", refreshToken, { httpOnly: true, sameSite: "strict" });
+};
 
 // ================== PASSWORD RESET ==================
 
@@ -28,21 +54,14 @@ export const requestResetEmail = async (req, res, next) => {
     }
 
     const token = jwt.sign(
-      { userId: user._id, email: user.email }, // ✅ додаємо email
-      JWT_SECRET,                              // ✅ використовуємо JWT_SECRET
+      { sub: user._id, email: user.email },
+      JWT_SECRET,
       { expiresIn: "15m" }
     );
 
-    const resetLink = `${FRONTEND_DOMAIN}/reset-password?token=${encodeURIComponent(
-      token
-    )}`;
+    const resetLink = `${FRONTEND_DOMAIN}/reset-password?token=${encodeURIComponent(token)}`;
 
-    const templatePath = path.join(
-      process.cwd(),
-      "src",
-      "templates",
-      "reset-password-email.html"
-    );
+    const templatePath = path.join(process.cwd(), "src", "templates", "reset-password-email.html");
     const raw = await fs.readFile(templatePath, "utf-8");
     const tpl = handlebars.compile(raw);
     const html = tpl({ username: user.username ?? user.email, resetLink });
@@ -69,12 +88,12 @@ export const resetPassword = async (req, res, next) => {
 
     let payload;
     try {
-      payload = jwt.verify(token, JWT_SECRET); // ✅ перевіряємо через JWT_SECRET
+      payload = jwt.verify(token, JWT_SECRET);
     } catch {
       throw createHttpError(400, "Invalid or expired token");
     }
 
-    const user = await User.findById(payload.userId);
+    const user = await User.findById(payload.sub);
     if (!user) throw createHttpError(404, "User not found");
 
     const salt = await bcrypt.genSalt(10);
@@ -102,11 +121,10 @@ export const registerUser = async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
 
-    const user = await User.create({
-      email,
-      password: hash,
-      username,
-    });
+    const user = await User.create({ email, password: hash, username });
+
+    const { session, accessToken, refreshToken } = await createSession(user._id);
+    setSessionCookies(res, session._id, accessToken, refreshToken);
 
     res.status(201).json(user); // toJSON видалить пароль
   } catch (err) {
@@ -125,11 +143,10 @@ export const loginUser = async (req, res, next) => {
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw createHttpError(401, "Invalid credentials");
 
-    const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const { session, accessToken, refreshToken } = await createSession(user._id);
+    setSessionCookies(res, session._id, accessToken, refreshToken);
 
-    res.json({ token });
+    res.json({ message: "Login successful" });
   } catch (err) {
     next(err);
   }
@@ -138,23 +155,25 @@ export const loginUser = async (req, res, next) => {
 // POST /auth/refresh
 export const refreshUserSession = async (req, res, next) => {
   try {
-    const { token } = req.body;
-    if (!token) throw createHttpError(400, "Token required");
+    const { sessionId, refreshToken } = req.cookies;
+    if (!sessionId || !refreshToken) throw createHttpError(400, "Missing session cookies");
+
+    const session = await Session.findById(sessionId);
+    if (!session) throw createHttpError(401, "Session not found");
+
+    if (session.refreshToken !== refreshToken) throw createHttpError(401, "Invalid refresh token");
 
     let payload;
     try {
-      payload = jwt.verify(token, JWT_SECRET);
+      payload = jwt.verify(refreshToken, JWT_SECRET);
     } catch {
-      throw createHttpError(401, "Invalid token");
+      throw createHttpError(401, "Expired refresh token");
     }
 
-    const newToken = jwt.sign(
-      { userId: payload.userId, email: payload.email },
-      JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+    const accessToken = jwt.sign({ sub: payload.sub }, JWT_SECRET, { expiresIn: "15m" });
+    res.cookie("accessToken", accessToken, { httpOnly: true, sameSite: "strict" });
 
-    res.json({ token: newToken });
+    res.json({ message: "Session refreshed" });
   } catch (err) {
     next(err);
   }
@@ -163,7 +182,15 @@ export const refreshUserSession = async (req, res, next) => {
 // POST /auth/logout
 export const logoutUser = async (req, res, next) => {
   try {
-    // У простій реалізації можна просто відповісти успіхом
+    const { sessionId } = req.cookies;
+    if (sessionId) {
+      await Session.findByIdAndDelete(sessionId);
+    }
+
+    res.clearCookie("sessionId");
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+
     res.json({ message: "User logged out" });
   } catch (err) {
     next(err);
