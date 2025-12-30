@@ -6,8 +6,8 @@ import { errors } from "celebrate";
 
 import { connectMongoDB } from "./db/connectMongoDB.js";
 import { logger } from "./middleware/logger.js";
-import { notFoundHandler } from "./middleware/notFoundHandler.js";
-import { errorHandler } from "./middleware/errorHandler.js";
+import { notFoundHandler } from "./middleware/errorHandler.js"; // named export
+import errorHandler from "./middleware/errorHandler.js";        // default export
 
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
