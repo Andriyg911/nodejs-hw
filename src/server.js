@@ -5,7 +5,7 @@ import cookieParser from "cookie-parser";
 import { errors } from "celebrate";
 
 import { connectMongoDB } from "./db/connectMongoDB.js";
-import { logger } from "./middleware/logger.js";
+import logger from "./middleware/logger.js";                  // default export
 import { notFoundHandler } from "./middleware/errorHandler.js"; // named export
 import errorHandler from "./middleware/errorHandler.js";        // default export
 
