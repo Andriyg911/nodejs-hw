@@ -17,15 +17,12 @@ const {
 // ================== SESSION HELPERS ==================
 
 const createSession = async (userId) => {
-  // видаляємо старі сесії користувача
-  await Session.deleteMany({ userId });
-
-  // створюємо нову
+  // створюємо нову сесію
   const session = await Session.create({ userId });
 
   // генеруємо токени
   const accessToken = jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "15m" });
-  const refreshToken = jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "7d" });
+  const refreshToken = jwt.sign({ sub: userId, email: userId.email }, JWT_SECRET, { expiresIn: "7d" });
 
   session.refreshToken = refreshToken;
   await session.save();
@@ -93,7 +90,8 @@ export const resetPassword = async (req, res, next) => {
       throw createHttpError(400, "Invalid or expired token");
     }
 
-    const user = await User.findById(payload.sub);
+    // перевіряємо і ID, і email
+    const user = await User.findOne({ _id: payload.sub, email: payload.email });
     if (!user) throw createHttpError(404, "User not found");
 
     const salt = await bcrypt.genSalt(10);
@@ -116,17 +114,20 @@ export const registerUser = async (req, res, next) => {
     const { email, password, username } = req.body;
 
     const existing = await User.findOne({ email });
-    if (existing) throw createHttpError(409, "Email already in use");
+    if (existing) throw createHttpError(400, "Email already in use"); // <-- 400
 
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
 
     const user = await User.create({ email, password: hash, username });
 
+    // видаляємо попередні сесії
+    await Session.deleteMany({ userId: user._id });
+
     const { session, accessToken, refreshToken } = await createSession(user._id);
     setSessionCookies(res, session._id, accessToken, refreshToken);
 
-    res.status(201).json(user); // toJSON видалить пароль
+    res.status(201).json(user);
   } catch (err) {
     next(err);
   }
@@ -142,6 +143,9 @@ export const loginUser = async (req, res, next) => {
 
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw createHttpError(401, "Invalid credentials");
+
+    // явно видаляємо попередні сесії
+    await Session.deleteMany({ userId: user._id });
 
     const { session, accessToken, refreshToken } = await createSession(user._id);
     setSessionCookies(res, session._id, accessToken, refreshToken);
@@ -170,8 +174,12 @@ export const refreshUserSession = async (req, res, next) => {
       throw createHttpError(401, "Expired refresh token");
     }
 
-    const accessToken = jwt.sign({ sub: payload.sub }, JWT_SECRET, { expiresIn: "15m" });
-    res.cookie("accessToken", accessToken, { httpOnly: true, sameSite: "strict" });
+    // видаляємо стару сесію і створюємо нову
+    await Session.findByIdAndDelete(sessionId);
+    const { session: newSession, accessToken, refreshToken: newRefreshToken } =
+      await createSession(payload.sub);
+
+    setSessionCookies(res, newSession._id, accessToken, newRefreshToken);
 
     res.json({ message: "Session refreshed" });
   } catch (err) {
@@ -191,7 +199,7 @@ export const logoutUser = async (req, res, next) => {
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
 
-    res.json({ message: "User logged out" });
+    res.status(204).end(); // <-- 204 без контенту
   } catch (err) {
     next(err);
   }
