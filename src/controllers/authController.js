@@ -11,18 +11,22 @@ import { sendEmail } from "../utils/sendMail.js";
 
 const {
   JWT_SECRET,
-  FRONTEND_DOMAIN, // e.g. https://your-frontend.com
+  FRONTEND_DOMAIN,
+  SMTP_FROM, // додано для відправки email
 } = process.env;
 
 // ================== SESSION HELPERS ==================
 
-const createSession = async (userId) => {
-  // створюємо нову сесію
-  const session = await Session.create({ userId });
+const createSession = async (user) => {
+  // видаляємо старі сесії
+  await Session.deleteMany({ userId: user._id });
 
-  // генеруємо токени
-  const accessToken = jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "15m" });
-  const refreshToken = jwt.sign({ sub: userId, email: userId.email }, JWT_SECRET, { expiresIn: "7d" });
+  // створюємо нову
+  const session = await Session.create({ userId: user._id });
+
+  // генеруємо токени з email користувача
+  const accessToken = jwt.sign({ sub: user._id }, JWT_SECRET, { expiresIn: "15m" });
+  const refreshToken = jwt.sign({ sub: user._id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
 
   session.refreshToken = refreshToken;
   await session.save();
@@ -64,6 +68,7 @@ export const requestResetEmail = async (req, res, next) => {
     const html = tpl({ username: user.username ?? user.email, resetLink });
 
     await sendEmail({
+      from: SMTP_FROM, // додано
       to: user.email,
       subject: "Reset your password",
       html,
@@ -90,7 +95,6 @@ export const resetPassword = async (req, res, next) => {
       throw createHttpError(400, "Invalid or expired token");
     }
 
-    // перевіряємо і ID, і email
     const user = await User.findOne({ _id: payload.sub, email: payload.email });
     if (!user) throw createHttpError(404, "User not found");
 
@@ -114,17 +118,14 @@ export const registerUser = async (req, res, next) => {
     const { email, password, username } = req.body;
 
     const existing = await User.findOne({ email });
-    if (existing) throw createHttpError(400, "Email already in use"); // <-- 400
+    if (existing) throw createHttpError(400, "Email already in use");
 
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
 
     const user = await User.create({ email, password: hash, username });
 
-    // видаляємо попередні сесії
-    await Session.deleteMany({ userId: user._id });
-
-    const { session, accessToken, refreshToken } = await createSession(user._id);
+    const { session, accessToken, refreshToken } = await createSession(user);
     setSessionCookies(res, session._id, accessToken, refreshToken);
 
     res.status(201).json(user);
@@ -144,13 +145,10 @@ export const loginUser = async (req, res, next) => {
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw createHttpError(401, "Invalid credentials");
 
-    // явно видаляємо попередні сесії
-    await Session.deleteMany({ userId: user._id });
-
-    const { session, accessToken, refreshToken } = await createSession(user._id);
+    const { session, accessToken, refreshToken } = await createSession(user);
     setSessionCookies(res, session._id, accessToken, refreshToken);
 
-    res.json({ message: "Login successful" });
+    res.json(user); // повертаємо користувача замість message
   } catch (err) {
     next(err);
   }
@@ -174,10 +172,10 @@ export const refreshUserSession = async (req, res, next) => {
       throw createHttpError(401, "Expired refresh token");
     }
 
-    // видаляємо стару сесію і створюємо нову
     await Session.findByIdAndDelete(sessionId);
+    const user = await User.findById(payload.sub);
     const { session: newSession, accessToken, refreshToken: newRefreshToken } =
-      await createSession(payload.sub);
+      await createSession(user);
 
     setSessionCookies(res, newSession._id, accessToken, newRefreshToken);
 
@@ -199,7 +197,7 @@ export const logoutUser = async (req, res, next) => {
     res.clearCookie("accessToken");
     res.clearCookie("refreshToken");
 
-    res.status(204).end(); // <-- 204 без контенту
+    res.status(204).end();
   } catch (err) {
     next(err);
   }
